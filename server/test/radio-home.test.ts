@@ -1,3 +1,6 @@
+import { mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DEFAULT_CONFIG } from "@shared/index.js";
 import { ConfigStore } from "../src/config-store.js";
@@ -20,11 +23,10 @@ describe("watchRadioHome", () => {
   beforeEach(() => vi.useFakeTimers());
   afterEach(() => vi.useRealTimers());
 
-  const storeAt = (p: { lat: number; lon: number }) => {
-    // Never saved: patches only schedule a write we don't reach.
-    const s = new ConfigStore("unused.json", { ...DEFAULT_CONFIG, centerLat: p.lat, centerLon: p.lon });
-    return s;
-  };
+  // Patches schedule a save; keep it in a throwaway folder.
+  const dir = mkdtempSync(join(tmpdir(), "skylight-home-"));
+  const storeAt = (p: { lat: number; lon: number }) =>
+    new ConfigStore(join(dir, "config.json"), { ...DEFAULT_CONFIG, centerLat: p.lat, centerLon: p.lon });
 
   it("runs the script once the far move settles", () => {
     const store = storeAt(CDG);
