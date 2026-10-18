@@ -38,6 +38,11 @@ fetch() { # url sha256 dest
   fi
 }
 
+# NSIS's Windows installer doesn't add itself to PATH.
+for d in "/c/Program Files (x86)/NSIS" "/c/Program Files/NSIS"; do
+  [[ -x "$d/makensis.exe" ]] && PATH="$PATH:$d"
+done
+
 for tool in pnpm makensis curl unzip; do
   command -v "$tool" >/dev/null || { echo "missing: $tool" >&2; exit 1; }
 done
@@ -83,6 +88,8 @@ cp -R "$HERE/launcher" "$STAGE/launcher"
 echo "[5/5] makensis"
 OUT="$BUILD/Skylight-Setup-$VERSION.exe"
 cd "$HERE"
+# Git Bash on Windows: makensis is a native exe and can't read /c/... paths.
+winpath() { if command -v cygpath >/dev/null; then cygpath -m "$1"; else printf '%s' "$1"; fi; }
 # makensis aborts (std::bad_alloc) on macOS without a UTF-8 locale.
-LC_ALL=en_US.UTF-8 LANG=en_US.UTF-8 makensis -V2 -DVERSION="$VERSION" -DSTAGE="$STAGE" -DOUTFILE="$OUT" installer.nsi
+LC_ALL=en_US.UTF-8 LANG=en_US.UTF-8 makensis -V2 -DVERSION="$VERSION" -DSTAGE="$(winpath "$STAGE")" -DOUTFILE="$(winpath "$OUT")" installer.nsi
 echo "built $OUT ($(du -h "$OUT" | cut -f1))"
