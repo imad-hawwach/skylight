@@ -8,7 +8,17 @@ import { useStream } from "../lib/useStream.js";
 import { nextISSPass, type Tle } from "../display/celestial.js";
 import { nextSkyEvent } from "../display/skyEvents.js";
 import { labelLines } from "../display/renderer.js";
-import { ColorRow, Row, Section, Segmented, Slider, TextInput, Toggle } from "./components.js";
+import {
+  AirportSearch,
+  ColorRow,
+  Row,
+  Section,
+  Segmented,
+  Slider,
+  TextInput,
+  Toggle,
+  type AirportHit,
+} from "./components.js";
 
 function skyTimeLabel(offsetMin: number): string {
   if (offsetMin === 0) return "live";
@@ -89,6 +99,8 @@ export function Control() {
   }
 
   const set = (patch: Partial<Config>) => conn.patchConfig(patch);
+  const layout: "sky" | "map" | "radar" =
+    cfg.projectionMode === "sky" ? "sky" : cfg.basemap !== "off" ? "radar" : "map";
   const setField = (k: keyof ShowFields, v: boolean) =>
     conn.patchConfig({ showFields: { ...cfg.showFields, [k]: v } });
   const statusMessage = state.status?.message ? ` · ${state.status.message}` : "";
@@ -169,6 +181,11 @@ export function Control() {
     } finally {
       setApBusy(false);
     }
+  };
+  // Picked an airport as the location: center on it and load its runways.
+  const moveToAirport = (h: AirportHit) => {
+    set({ centerLat: h.lat, centerLon: h.lon, locationName: h.name });
+    void importAirport(h.ident);
   };
   const centerOnAirport = () =>
     set({
@@ -256,12 +273,11 @@ export function Control() {
         <Section title="Location">
           <Row label={cfg.locationName || "Location"} hint={formatLatLon(cfg.centerLat, cfg.centerLon)}>
             <div className="loc-bar">
-              <TextInput
-                key={cfg.locationName}
-                value=""
-                placeholder="city, airport, or lat,lon"
+              <AirportSearch
+                placeholder="airport, city, or lat,lon"
                 ariaLabel="Change location"
-                onCommit={changeLocation}
+                onPick={moveToAirport}
+                onSubmitText={changeLocation}
               />
               <button
                 type="button"
@@ -305,12 +321,11 @@ export function Control() {
             hint={`${cfg.airport.icao}${cfg.airport.fullName ? ` · ${cfg.airport.fullName}` : ""}`}
           >
             <div className="loc-bar">
-              <TextInput
-                key={cfg.airport.icao}
-                value=""
-                placeholder="airport code (KSFO, EDDF, SNA…)"
+              <AirportSearch
+                placeholder="airport name or code (DGAA, Kotoka…)"
                 ariaLabel="Import airport runways"
-                onCommit={importAirport}
+                onPick={(h) => void importAirport(h.ident)}
+                onSubmitText={importAirport}
               />
               <button
                 type="button"
@@ -399,16 +414,47 @@ export function Control() {
               unit={cfg.distanceUnit}
               onChange={(v) => set({ radiusMiles: round(convertDistanceToMi(v, cfg.distanceUnit), 1) })} />
           </Row>
-          <Row label="Projection" hint="sky = realistic look-up motion">
+          <Row label="Projection" hint="sky = look-up motion · radar = web map">
             <Segmented
-              value={cfg.projectionMode}
+              value={layout}
               options={[
                 { value: "sky", label: "Sky" },
                 { value: "map", label: "Map" },
+                { value: "radar", label: "Radar" },
               ]}
-              onChange={(v) => set({ projectionMode: v })}
+              onChange={(v) =>
+                set(
+                  v === "radar"
+                    ? { projectionMode: "map", basemap: cfg.basemap === "off" ? "dark" : cfg.basemap }
+                    : { projectionMode: v, basemap: "off" },
+                )
+              }
             />
           </Row>
+          {layout === "radar" && (
+            <>
+              <Row label="Map style" indent>
+                <Segmented
+                  value={cfg.basemap}
+                  options={[
+                    { value: "dark", label: "Dark" },
+                    { value: "streets", label: "Streets" },
+                    { value: "satellite", label: "Satellite" },
+                  ]}
+                  onChange={(v) => set({ basemap: v })}
+                />
+              </Row>
+              <Row label="Map opacity" hint="lower = planes stand out" indent>
+                <Slider id="basemapOpacity" value={cfg.basemapOpacity} min={0.1} max={1} step={0.05}
+                  onChange={(v) => set({ basemapOpacity: v })} />
+              </Row>
+              {cfg.mirrorX !== cfg.mirrorY && (
+                <Row label="" hint="map text reads backwards while mirrored — turn Mirror off for a wall/screen" indent>
+                  <span />
+                </Row>
+              )}
+            </>
+          )}
         </Section>
 
         <Section title="View">
@@ -559,7 +605,7 @@ export function Control() {
           <Row label="Compass">
             <Toggle value={cfg.compass} onChange={(v) => set({ compass: v })} />
           </Row>
-          <Row label="Airport runways" hint="SFO geometry; off if you've moved">
+          <Row label="Airport runways" hint={`${cfg.airport.name} geometry · change it under Location`}>
             <Toggle value={cfg.showAirport} onChange={(v) => set({ showAirport: v })} />
           </Row>
           <Row label="Highlight emergency">

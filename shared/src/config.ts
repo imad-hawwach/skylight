@@ -29,6 +29,9 @@ export type AltitudeUnit = "ft" | "m";
 export type DistanceUnit = "mi" | "km";
 /** map = flat ground plan; sky = look-up dome with altitude-aware motion. */
 export type ProjectionMode = "map" | "sky";
+/** Web map drawn under the map projection (Flightradar-style). "off" keeps
+ *  the plain black field. */
+export type Basemap = "off" | "dark" | "streets" | "satellite";
 
 export interface Palette {
   bg: string;
@@ -400,6 +403,12 @@ export interface Config {
   labelRotationDeg: number;
   /** How aircraft are placed on the ceiling (sky = realistic look-up geometry). */
   projectionMode: ProjectionMode;
+  /** Web map under the aircraft (map projection only; the sky layer is
+   *  hidden while it shows). */
+  basemap: Basemap;
+  /** How strongly the web map shows through, 0..1 (lower = darker, so the
+   *  aircraft stand out). */
+  basemapOpacity: number;
 
   // --- filtering ---
   minAltitudeFt: number;
@@ -507,6 +516,8 @@ export const DEFAULT_CONFIG: Config = {
   labelRotationDeg: 0,
   // Default to the flat ground plan (the original look); "sky" is opt-in.
   projectionMode: "map",
+  basemap: "off",
+  basemapOpacity: 0.75,
 
   minAltitudeFt: 100,
   maxAltitudeFt: 60000,

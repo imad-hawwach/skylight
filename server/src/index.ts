@@ -18,7 +18,7 @@ import { SatCatStore } from "./satcat.js";
 import { resolveLocation } from "./geocode.js";
 import { buildHostMatcher, originHostname } from "./allowed-hosts.js";
 import { SfoGroundPoller } from "./sfo-ground.js";
-import { lookupAirport, lookupCity } from "./airports.js";
+import { lookupAirport, lookupCity, searchAirports } from "./airports.js";
 import { lookupAirlineByCallsign } from "./airlines.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -220,6 +220,16 @@ async function main(): Promise<void> {
       res.json(await lookupAirport(code, DATA_DIR));
     } catch (err) {
       res.status(404).json({ error: err instanceof Error ? err.message : "lookup failed" });
+    }
+  });
+
+  // Airport autocomplete for the control panel (code, name or city).
+  app.get("/api/airports/search", async (req, res) => {
+    const q = String(req.query.q ?? "").trim();
+    try {
+      res.json(await searchAirports(q, DATA_DIR));
+    } catch (err) {
+      res.status(502).json({ error: err instanceof Error ? err.message : "search failed" });
     }
   });
 

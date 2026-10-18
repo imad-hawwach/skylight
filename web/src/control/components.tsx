@@ -143,6 +143,152 @@ export function TextInput({
   );
 }
 
+/** One row from the server's /api/airports/search. */
+export interface AirportHit {
+  ident: string;
+  iata: string;
+  name: string;
+  city: string;
+  country: string;
+  lat: number;
+  lon: number;
+  type: string;
+}
+
+/**
+ * Text input with airport suggestions (code, name or city) as you type.
+ * Picking a suggestion calls `onPick`; Enter with nothing highlighted
+ * hands the raw text to `onSubmitText` (e.g. a city for the geocoder).
+ */
+export function AirportSearch({
+  placeholder,
+  ariaLabel,
+  onPick,
+  onSubmitText,
+}: {
+  placeholder?: string;
+  ariaLabel?: string;
+  onPick: (hit: AirportHit) => void;
+  onSubmitText?: (text: string) => void;
+}) {
+  const [text, setText] = useState("");
+  const [hits, setHits] = useState<AirportHit[]>([]);
+  const [open, setOpen] = useState(false);
+  const [active, setActive] = useState(-1);
+  const [searched, setSearched] = useState("");
+
+  useEffect(() => {
+    const q = text.trim();
+    if (q.length < 2) {
+      setHits([]);
+      setSearched("");
+      return;
+    }
+    const ctl = new AbortController();
+    const t = setTimeout(() => {
+      fetch(`/api/airports/search?q=${encodeURIComponent(q)}`, { signal: ctl.signal })
+        .then((r) => (r.ok ? r.json() : []))
+        .then((h: AirportHit[]) => {
+          setHits(h);
+          setActive(h.length ? 0 : -1);
+          setSearched(q);
+        })
+        .catch(() => {});
+    }, 150);
+    return () => {
+      clearTimeout(t);
+      ctl.abort();
+    };
+  }, [text]);
+
+  const pick = (h: AirportHit) => {
+    setText("");
+    setHits([]);
+    setOpen(false);
+    onPick(h);
+  };
+  const submitText = () => {
+    const q = text.trim();
+    if (!q || !onSubmitText) return;
+    setText("");
+    setOpen(false);
+    onSubmitText(q);
+  };
+
+  const showList = open && text.trim().length >= 2 && (hits.length > 0 || searched === text.trim());
+
+  return (
+    <div className="ac-wrap">
+      <input
+        className="text-input"
+        type="text"
+        value={text}
+        placeholder={placeholder}
+        aria-label={ariaLabel}
+        role="combobox"
+        aria-expanded={showList}
+        aria-autocomplete="list"
+        spellCheck={false}
+        autoComplete="off"
+        onChange={(e) => {
+          setText(e.target.value);
+          setOpen(true);
+        }}
+        onFocus={() => setOpen(true)}
+        onBlur={() => setOpen(false)}
+        onKeyDown={(e) => {
+          if (e.key === "ArrowDown" && hits.length) {
+            e.preventDefault();
+            setOpen(true);
+            setActive((a) => (a + 1) % hits.length);
+          } else if (e.key === "ArrowUp" && hits.length) {
+            e.preventDefault();
+            setActive((a) => (a <= 0 ? hits.length - 1 : a - 1));
+          } else if (e.key === "Escape") {
+            setOpen(false);
+          } else if (e.key === "Enter") {
+            e.preventDefault();
+            if (showList && active >= 0 && hits[active]) pick(hits[active]);
+            else submitText();
+          }
+        }}
+      />
+      {showList && (
+        <ul className="ac-list" role="listbox">
+          {hits.length === 0 && (
+            <li className="ac-empty">
+              No airports match{onSubmitText ? " — Enter to search places" : ""}
+            </li>
+          )}
+          {hits.map((h, i) => (
+            <li
+              key={h.ident}
+              role="option"
+              aria-selected={i === active}
+              className={`ac-item ${i === active ? "on" : ""}`}
+              // mousedown, not click: fires before the input's blur closes the list.
+              onMouseDown={(e) => {
+                e.preventDefault();
+                pick(h);
+              }}
+              onMouseEnter={() => setActive(i)}
+            >
+              <span className="ac-code">{h.iata || h.ident}</span>
+              <span className="ac-main">
+                <span className="ac-name">{h.name}</span>
+                <span className="ac-sub">
+                  {[h.city, h.country].filter(Boolean).join(", ")}
+                  {h.iata ? ` · ${h.ident}` : ""}
+                </span>
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 export function Segmented<T extends string>({
   value,
   options,

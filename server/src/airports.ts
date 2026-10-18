@@ -69,7 +69,8 @@ function parseCsvLine(line: string): string[] {
  */
 export async function lookupAirport(code: string, dataDir: string): Promise<Airport> {
   const q = code.trim().toUpperCase();
-  if (!/^[A-Z0-9]{3,4}$/.test(q)) {
+  // 3-4 chars for ICAO/IATA; longer local idents ("GH-0002") come from search.
+  if (!/^[A-Z0-9-]{3,10}$/.test(q)) {
     throw new Error("enter an ICAO (KSFO) or IATA (SFO) airport code");
   }
 
@@ -143,6 +144,116 @@ export async function lookupAirport(code: string, dataDir: string): Promise<Airp
 
   const iata = cIata >= 0 ? row[cIata] : "";
   return { icao: ident, name: iata || ident, fullName: row[cName], lat, lon, runways };
+}
+
+/** One autocomplete hit — enough to show and to import with lookupAirport. */
+export interface AirportHit {
+  /** OurAirports ident (ICAO for most airports) — pass to /api/airport. */
+  ident: string;
+  iata: string;
+  name: string;
+  city: string;
+  country: string;
+  lat: number;
+  lon: number;
+  type: string;
+}
+
+interface IndexedAirport extends AirportHit {
+  /** Lowercased name + city, for substring matching. */
+  hay: string;
+  rank: number;
+}
+
+/** Bigger airports first when matches tie. */
+const TYPE_RANK: Record<string, number> = {
+  large_airport: 0,
+  medium_airport: 1,
+  small_airport: 2,
+  seaplane_base: 3,
+};
+
+let index: { builtAt: number; rows: IndexedAirport[] } | null = null;
+let building: Promise<IndexedAirport[]> | null = null;
+
+async function airportIndex(dataDir: string): Promise<IndexedAirport[]> {
+  if (index && Date.now() - index.builtAt < MAX_AGE_MS) return index.rows;
+  building ??= (async () => {
+    const csv = await cachedCsv(dataDir, "airports.csv");
+    const lines = csv.split("\n");
+    const h = parseCsvLine(lines[0]);
+    const c = (name: string) => h.indexOf(name);
+    const [cIdent, cType, cName, cLat, cLon, cCountry, cCity, cIata] = [
+      c("ident"), c("type"), c("name"), c("latitude_deg"), c("longitude_deg"),
+      c("iso_country"), c("municipality"), c("iata_code"),
+    ];
+    const rows: IndexedAirport[] = [];
+    for (let i = 1; i < lines.length; i++) {
+      if (!lines[i]) continue;
+      const r = parseCsvLine(lines[i]);
+      const type = r[cType];
+      // Heliports, balloon ports and closed fields have no runways to draw.
+      if (!(type in TYPE_RANK)) continue;
+      const lat = parseFloat(r[cLat]);
+      const lon = parseFloat(r[cLon]);
+      if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue;
+      const name = r[cName] ?? "";
+      const city = r[cCity] ?? "";
+      rows.push({
+        ident: r[cIdent],
+        iata: (cIata >= 0 && r[cIata]) || "",
+        name,
+        city,
+        country: r[cCountry] ?? "",
+        lat,
+        lon,
+        type,
+        hay: `${name} ${city}`.toLowerCase(),
+        rank: TYPE_RANK[type],
+      });
+    }
+    index = { builtAt: Date.now(), rows };
+    return rows;
+  })().finally(() => {
+    building = null;
+  });
+  return building;
+}
+
+/**
+ * Autocomplete: airports matching `query` by code (ICAO/IATA, exact or
+ * prefix) or by words of the name/city ("kotoka", "accra", "san fran").
+ * Exact codes first, then code prefixes, then name/city word starts, then
+ * substrings; bigger airports first within each tier.
+ */
+export async function searchAirports(query: string, dataDir: string, limit = 8): Promise<AirportHit[]> {
+  const q = query.trim().toLowerCase();
+  if (q.length < 2) return [];
+  const Q = q.toUpperCase();
+  const rows = await airportIndex(dataDir);
+  const words = q.split(/\s+/).filter(Boolean);
+
+  const scored: { a: IndexedAirport; s: number }[] = [];
+  for (const a of rows) {
+    let tier: number;
+    if (a.ident === Q || a.iata === Q) tier = 0;
+    else if (a.ident.startsWith(Q) || (a.iata && a.iata.startsWith(Q))) tier = 1;
+    else if (words.every((w) => a.hay.startsWith(w) || a.hay.includes(` ${w}`))) tier = 2;
+    else if (words.every((w) => a.hay.includes(w))) tier = 3;
+    else continue;
+    scored.push({ a, s: tier * 10 + a.rank });
+  }
+  scored.sort((x, y) => x.s - y.s || x.a.name.localeCompare(y.a.name));
+  return scored.slice(0, limit).map(({ a }) => ({
+    ident: a.ident,
+    iata: a.iata,
+    name: a.name,
+    city: a.city,
+    country: a.country,
+    lat: a.lat,
+    lon: a.lon,
+    type: a.type,
+  }));
 }
 
 /**

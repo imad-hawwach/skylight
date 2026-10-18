@@ -51,6 +51,7 @@ import {
 import { classifyGlyph, drawAircraftGlyph, GLYPH_SCALE } from "./aircraftGlyph.js";
 import { computeSky, type Sky, type Tle, type SkyBody } from "./celestial.js";
 import { visibleAsterisms } from "./stars.js";
+import { BasemapLayer } from "./basemap.js";
 import tzLookup from "tz-lookup";
 
 /** How far in the past we render, ms. Just over the ~1 Hz fix interval. */
@@ -237,6 +238,7 @@ export class Renderer {
   private lastFrameDt = 0.016;
   private selectedId: string | null = null;
   private hoverScale = new Map<string, number>();
+  private basemap = new BasemapLayer();
 
   constructor(
     private canvas: HTMLCanvasElement,
@@ -479,8 +481,22 @@ export class Renderer {
     };
 
     this.satPickables = [];
-    this.updateSky(cfg, now);
-    this.drawSky(cfg, proj);
+    // Radar view: a web map under the planes. Stars and planets make no
+    // sense over a street map, so the sky layer sits out while it shows.
+    const radar = cfg.projectionMode === "map" && cfg.basemap !== "off";
+    if (radar) {
+      this.basemap.draw(
+        ctx,
+        cfg,
+        (ll) => this.toScreen(ll, cfg, proj),
+        pxPerM,
+        Math.hypot(this.w, this.h) / 2 / pxPerM,
+        this.dpr,
+      );
+    } else {
+      this.updateSky(cfg, now);
+      this.drawSky(cfg, proj);
+    }
     this.drawOverlays(cfg, proj);
     if (cfg.showAirport) this.drawAirport(cfg, proj);
 

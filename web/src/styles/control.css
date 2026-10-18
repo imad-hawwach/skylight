@@ -266,6 +266,74 @@ main {
   min-width: 0;
   width: auto;
 }
+/* Airport autocomplete */
+.ac-wrap {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+.ac-wrap .text-input {
+  width: 100%;
+  box-sizing: border-box;
+}
+.ac-list {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 4px);
+  right: 0;
+  /* The input is narrow on phones; let names breathe past its left edge. */
+  width: max(100%, min(340px, 88vw));
+  box-sizing: border-box;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  max-height: 320px;
+  overflow-y: auto;
+}
+.ac-item {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 8px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.ac-item.on {
+  background: var(--panel-2);
+}
+.ac-code {
+  flex: 0 0 auto;
+  min-width: 4.2em;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--accent);
+}
+.ac-main {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.ac-name {
+  font-size: 13px;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ac-sub {
+  font-size: 11px;
+  color: var(--muted);
+}
+.ac-empty {
+  padding: 8px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
 .loc-btn {
   flex: 0 0 auto;
   border: 1px solid var(--line);
