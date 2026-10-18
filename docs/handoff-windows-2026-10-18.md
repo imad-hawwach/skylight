@@ -60,21 +60,77 @@ Kotoka International (5.6052, -0.1668)**. Keep developing locally on this PC.
   coverage in Ghana, so the free-API option is effectively empty there. The
   stick is the real source.
 
+## Session 2 - on the Windows PC (2026-10-18 evening)
+
+Repo now lives at `C:\dev\skylight` on the PC. Installed copy upgraded from
+this branch's build; settings kept.
+
+### Built
+
+- **Radar layout** - Projection is now `Sky | Map | Radar`. Radar = map
+  projection over a web map (`basemap`: dark / streets / satellite, plus
+  `basemapOpacity`), Flightradar-style; the sky layer is hidden while it shows.
+  `web/src/display/basemap.ts`: Web Mercator tiles placed through the same
+  lat/lon -> screen transform as the aircraft, so rotation/mirror/radius apply.
+  Checked against Kotoka's runway on satellite imagery and live SFO traffic.
+  Tiles are **Esri** (no key) - CARTO now needs an API key ("API KEY REQUIRED"
+  on every tile). One dimming veil instead of translucent tiles (no seams).
+- **Airport autocomplete** - `GET /api/airports/search?q=` (code, name or
+  city; OurAirports, bigger airports first; `server/src/airports.ts`) and an
+  `AirportSearch` dropdown in the control panel's Location and Runways fields.
+  Picking under Location centers there and imports the runways.
+- **dump1090 follows the location** - `server/src/radio-home.ts`: when the
+  location settles > 50 km from where the decoder started, the server runs
+  `launcher\restart-dump1090.ps1` (path passed in `SKYLIGHT_DUMP1090_RESTART`
+  by start-skylight.ps1), which rewrites `skylight.cfg` and restarts only
+  dump1090. Tested Accra -> CDG -> Accra on the installed copy.
+- **build.sh on Windows** - finds makensis in the NSIS folder, passes Windows
+  paths (`cygpath -m`) to node and makensis. NSIS 3.13 installed via winget.
+
+### Found
+
+- **Reception (next step 1):** stick, WinUSB driver and dump1090 all work.
+  Gain sweep (20 / 31 / 40 / 49.6 dB / AGC, 90 s each): higher gain made the
+  same nearby aircraft louder but never added new ones; AGC clipped. Keep 31.
+  The antenna is the limit: departures to the south/east (THY3KA) come through
+  well, arrivals from the north (a BA flight) weren't heard at all.
+- **"Hears planes, shows none" after a location change:** dump1090 reads
+  `homepos` once at start and drops every position > 500 km from it ("CPR:
+  global distance check failed ... actual 4839 km" in `dump1090\dump1090.log`).
+  Fixed by the restart above. Its log prints `F flag: even` for every frame -
+  a logging quirk only; the raw frames alternate even/odd and decode fine.
+- **No aircraft at CDG:** `planetariumMode` had been switched on (hides all
+  aircraft, server status "Aircraft display disabled").
+- Display minimizes when the projector is reconnected; Start > Skylight puts
+  it back. `skylight.ini` has `monitor=2` (projector, 1920x1080 right of the
+  3440x1440 main screen). Mirror off / rotation 0 for the wall; turn Mirror
+  back on for the ceiling.
+- Running `dump1090.exe --test ...` while the real one runs can knock the
+  stick off it ("A device which does not exist was specified") - don't.
+
+### Dev gotchas on this PC
+
+- Claude's "No folder" scratch workspace sits under a virtualized path that
+  breaks vite/esbuild on Windows - work in a short real path like `C:\dev`.
+- Clone with `-c core.longpaths=true`.
+
 ## Next steps
 
-1. Diagnose reception on this PC: `logs\dump1090.log`, `http://localhost:8080/`
-   (dump1090's own map), gain (dump1090.cfg `gain = 31`; try auto/higher),
-   antenna by a window / outdoors, check traffic at Kotoka on a flight tracker.
-2. Raise `radiusMiles` (3 -> ~20) for Accra; maybe default it higher in the installer.
+1. Antenna: higher, outdoors, clear view to the north; then compare the
+   message rate (it was ~4-15/min in the evening, hundreds with a nearby jet).
+2. Raise `radiusMiles` for Accra (30-40 mi to see arrivals early); maybe
+   default it higher in the installer.
 3. Installer: warn that the free API has no coverage in some regions (or check
    coverage at install time and suggest the stick).
-4. Optional: feed the stick's data to adsb.fi / adsb.lol so Accra gets coverage.
-5. Optional: GitHub Actions `windows-latest` smoke test (silent install, health check).
+4. Optional: runways are faint over the satellite map - consider brighter
+   runway lines in Radar mode.
+5. Optional: feed the stick's data to adsb.fi / adsb.lol so Accra gets coverage.
+6. Optional: GitHub Actions `windows-latest` smoke test (silent install, health check).
 
 ## Dev on Windows
 
 ```bash
-git clone https://github.com/imad-hawwach/skylight && cd skylight
+git -c core.longpaths=true clone https://github.com/imad-hawwach/skylight && cd skylight
 git checkout windows-installer
 pnpm install --filter server --filter web --filter shared --filter .
 pnpm exec vitest run shared server
