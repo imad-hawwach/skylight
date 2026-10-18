@@ -74,10 +74,13 @@ function center(cfg: Config): LatLon {
 }
 
 function runScript(script: string): void {
+  // Not `detached`: on Windows that starts PowerShell without a console, and
+  // it then exits 0 without running the script. The script launches dump1090
+  // as its own process, so nothing depends on this child staying around.
   const child = spawn(
     "powershell.exe",
     ["-NoProfile", "-ExecutionPolicy", "Bypass", "-WindowStyle", "Hidden", "-File", script],
-    { detached: true, stdio: "ignore", windowsHide: true },
+    { stdio: "ignore", windowsHide: true },
   );
   child.on("error", (e) => console.error("[radio] dump1090 restart failed:", e));
   child.unref();
