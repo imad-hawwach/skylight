@@ -170,6 +170,13 @@ Once it's running, push updates from your dev machine with:
 PI_HOST=skylight.local ./scripts/deploy-to-pi.sh
 ```
 
+## Windows PC
+
+No Pi? A Windows 10/11 PC with the projector as a second screen works too. A
+one-file installer bundles Node, the display, the dump1090 decoder and the
+RTL-SDR driver tool, and lets you pick your stick or the free internet API. See
+[`windows/README.md`](windows/README.md) (build it with `windows/build.sh`).
+
 ## Docker (server-driven projector)
 
 If you'd rather drive a projector from a server (no Pi, no cabling to the projector),

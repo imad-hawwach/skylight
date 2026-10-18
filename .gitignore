@@ -35,3 +35,6 @@ stream/.env*
 # pass-archive ingest key (passes/.ingest-key) — never commit
 .ingest-key
 __pycache__/
+
+# Windows installer build output
+windows/build/

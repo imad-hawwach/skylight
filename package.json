@@ -17,6 +17,7 @@
   },
   "devDependencies": {
     "concurrently": "^9.1.0",
+    "esbuild": "0.25.12",
     "playwright": "^1.60.0",
     "typescript": "^5.7.2",
     "vitest": "^3.0.0"
