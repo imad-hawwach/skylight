@@ -790,6 +790,7 @@ export class Renderer {
       satellites: cfg.showSatellites,
       planets: cfg.showPlanets,
       magLimit: cfg.starMagLimit,
+      outlineStars: new Set(visibleAsterisms(cfg.constellations).flat()),
       tles: this.tles,
     });
   }

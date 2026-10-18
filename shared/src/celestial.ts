@@ -54,6 +54,9 @@ export interface SkyOpts {
   satellites: boolean;
   planets: boolean;
   magLimit: number;
+  /** Star ids kept whatever their magnitude - the ends of the constellation
+   *  lines being drawn, so a faint corner doesn't break an outline. */
+  outlineStars?: ReadonlySet<string>;
   tles: Tle[];
 }
 
@@ -126,7 +129,7 @@ export function computeSky(date: Date, latDeg: number, lonDeg: number, o: SkyOpt
   if (o.stars) {
     const lst = Astronomy.SiderealTime(date) + lonDeg / 15; // local sidereal hours
     for (const s of STARS) {
-      if (s.mag > o.magLimit) continue;
+      if (s.mag > o.magLimit && !o.outlineStars?.has(s.id)) continue;
       const { az, alt } = starAltAz(s.ra, s.dec, lst, latDeg);
       if (alt < -2) continue; // below horizon
       sky.stars.push({ kind: "star", id: s.id, name: s.name, az, alt, mag: s.mag });
