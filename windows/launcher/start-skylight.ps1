@@ -15,12 +15,7 @@ New-Item -ItemType Directory -Force -Path $LogDir | Out-Null
 
 if ($s.source -eq 'radio') {
   if (Test-Path $DumpExe) {
-    $cfg = Write-Dump1090Config
-    # --net serves /data/aircraft.json on localhost:8080 - the server's default radio URL.
-    Start-Process -FilePath $DumpExe -ArgumentList @('--config', "`"$cfg`"", '--net') `
-      -WorkingDirectory $DumpDir -WindowStyle Hidden `
-      -RedirectStandardOutput (Join-Path $LogDir 'dump1090.log') `
-      -RedirectStandardError (Join-Path $LogDir 'dump1090-error.log')
+    Start-Dump1090
   } elseif (-not $Quiet) {
     Show-Message "Radio mode is selected but dump1090 isn't installed.`nRe-run the Skylight installer, or switch to the free internet API from the Start menu." 'Warning'
   }
@@ -33,6 +28,9 @@ $env:HOST        = '0.0.0.0'
 $env:NODE_ENV    = 'production'
 # On radio, also merge the free API so landing aircraft and gaps stay filled.
 if (-not $env:SUPPLEMENT_API) { $env:SUPPLEMENT_API = '1' }
+# dump1090 only keeps positions within 500 km of its home position, which it
+# reads at start. The server runs this when the location moves far enough.
+$env:SKYLIGHT_DUMP1090_RESTART = Join-Path $PSScriptRoot 'restart-dump1090.ps1'
 
 Start-Process -FilePath $NodeExe -ArgumentList "`"$ServerJs`"" `
   -WorkingDirectory (Split-Path $ServerJs) -WindowStyle Hidden `

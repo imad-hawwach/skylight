@@ -91,6 +91,32 @@ function Write-Dump1090Config {
   return $dst
 }
 
+# (Re)write skylight.cfg from the current location and start the decoder.
+# --net serves /data/aircraft.json on localhost:8080 - the server's default radio URL.
+function Start-Dump1090 {
+  $cfg = Write-Dump1090Config
+  New-Item -ItemType Directory -Force -Path $LogDir | Out-Null
+  Start-Process -FilePath $DumpExe -ArgumentList @('--config', "`"$cfg`"", '--net') `
+    -WorkingDirectory $DumpDir -WindowStyle Hidden `
+    -RedirectStandardOutput (Join-Path $LogDir 'dump1090.log') `
+    -RedirectStandardError (Join-Path $LogDir 'dump1090-error.log')
+}
+
+# Only the decoder from this install; the server and display keep running.
+function Stop-Dump1090 {
+  $procs = @(Get-CimInstance Win32_Process -Filter "Name='dump1090.exe'" | Where-Object {
+    $_.ExecutablePath -and $_.ExecutablePath.StartsWith($Root, [StringComparison]::OrdinalIgnoreCase)
+  })
+  foreach ($p in $procs) {
+    try { Stop-Process -Id $p.ProcessId -Force -ErrorAction Stop } catch { }
+  }
+  # Give the stick's USB handle a moment to close before it's reopened.
+  for ($i = 0; $i -lt 20 -and @($procs | Where-Object { Get-Process -Id $_.ProcessId -ErrorAction SilentlyContinue }).Count; $i++) {
+    Start-Sleep -Milliseconds 250
+  }
+  if ($procs.Count) { Start-Sleep -Milliseconds 750 }
+}
+
 function Find-Browser([string]$Preference) {
   $chrome = @(
     "$env:ProgramFiles\Google\Chrome\Application\chrome.exe",

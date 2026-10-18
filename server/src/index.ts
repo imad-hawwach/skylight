@@ -19,6 +19,7 @@ import { resolveLocation } from "./geocode.js";
 import { buildHostMatcher, originHostname } from "./allowed-hosts.js";
 import { SfoGroundPoller } from "./sfo-ground.js";
 import { lookupAirport, lookupCity, searchAirports } from "./airports.js";
+import { watchRadioHome } from "./radio-home.js";
 import { lookupAirlineByCallsign } from "./airlines.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -136,6 +137,12 @@ async function main(): Promise<void> {
     enricher,
     onSnapshot: (now, aircraft) => hub.broadcastAircraft(now, aircraft),
     onStatus: (status) => hub.broadcastStatus(status),
+  });
+
+  // Windows: restart dump1090 when the location moves far (it filters on homepos).
+  watchRadioHome(store, {
+    script: process.env.SKYLIGHT_DUMP1090_RESTART,
+    isRadio: () => poller.getStatus().source === "radio",
   });
 
   // SFO surface traffic (via the configured aggregator) — the "who's next"
